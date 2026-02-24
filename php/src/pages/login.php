@@ -2,7 +2,29 @@
 session_start();
 require_once '../db.php';
 
+$window = 60;
+$limit = 2;
+
 $message = '';
+
+function checkRateLimit($redis, $userId) {
+    global $window, $limit;
+    
+    $redisKey = "connections:" . $userId;
+    $now = time();
+
+    // Si 1ere connection, la clé n'existe pas encore, on autorise
+    if (!$redis->exists($redisKey)) {
+        return true;
+    }
+
+    // On supprime les connexions hors de la fenêtre
+    $redis->zRemRangeByScore($redisKey, 0, $now - $window);
+
+    // Puis on compte le nombre de connexions restantes dans la fenêtre
+    return $redis->zCard($redisKey) < $limit;
+}
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -15,15 +37,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['email'] = $user['email'];
-            $_SESSION['prenom'] = $user['prenom'];
-            $_SESSION['nom'] = $user['nom'];
-            header("Location: home.php"); // Redirection après succès
-            exit;
+
+            if (!checkRateLimit($redis, $user['id'])) {
+                $message = "Limite atteinte.";
+            } else {
+                $redisKey = "connections:" . $user['id'];
+                $now = time();
+                $redis->zAdd($redisKey, $now, $now . microtime(true));
+                
+                // Expire en entier après la fenètre
+                $redis->expire($redisKey, $window + 1);
+
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['email'] = $user['email'];
+                $_SESSION['prenom'] = $user['prenom'];
+                $_SESSION['nom'] = $user['nom'];
+                header("Location: home.php"); // Redirection après succès
+                exit;
+            }
         } else {
             $message = "Email ou mot de passe incorrect.";
         }
+
+
     }
 }
 ?>
