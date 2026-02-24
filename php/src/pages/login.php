@@ -10,7 +10,7 @@ $message = '';
 function checkRateLimit($redis, $userId) {
     global $window, $limit;
     
-    $redisKey = "connections:" . $userId;
+    $redisKey = "connections:user_" . $userId;
     $now = time();
 
     // Si 1ere connection, la clé n'existe pas encore, on autorise
@@ -23,6 +23,16 @@ function checkRateLimit($redis, $userId) {
 
     // Puis on compte le nombre de connexions restantes dans la fenêtre
     return $redis->zCard($redisKey) < $limit;
+}
+
+
+function incrementGlobal($redis, $userId) {
+    $totalKey = "connections:global:total";
+    $redis->zIncrBy($totalKey, 1, $userId);
+
+    $latestKey = "connections:global:latest";
+    $redis->zAdd($latestKey, time() . microtime(true), $userId);
+    $redis->zRemRangeByRank($latestKey, 0, -11); // Garde que les 10 dernières connexions
 }
 
 
@@ -41,12 +51,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!checkRateLimit($redis, $user['id'])) {
                 $message = "Limite atteinte.";
             } else {
-                $redisKey = "connections:" . $user['id'];
+                $redisKey = "connections:user_" . $user['id'];
                 $now = time();
                 $redis->zAdd($redisKey, $now, $now . microtime(true));
                 
                 // Expire en entier après la fenètre
                 $redis->expire($redisKey, $window + 1);
+
+                incrementGlobal($redis, $user['id']);
 
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['email'] = $user['email'];
