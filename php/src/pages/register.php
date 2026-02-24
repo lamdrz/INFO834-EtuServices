@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($e->getCode() == 23000) {
                 $message = "Cet email est déjà utilisé.";
             } else {
-                $message = "Erreur lors de l'inscription : " . $e->getCode();
+                $message = "Erreur lors de l'inscription : " . $e->getCode() . " - " . $e->getMessage();
             }
         }
     } else {

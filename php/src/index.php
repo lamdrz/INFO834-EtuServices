@@ -1,6 +1,5 @@
 <?php
 
-require_once 'db.php';
+require_once 'init_db.php';
 
-$redis = new Redis();
-$redis->connect('redis', 6379);
+header("Location: pages/login.php");
