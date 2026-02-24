@@ -2,8 +2,8 @@
 session_start();
 require_once '../db.php';
 
-$window = 60;
-$limit = 2;
+$window = 600; // = 10min
+$limit = 10;
 
 $message = '';
 
